@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
+import os from 'os';
+
+const execPromise = promisify(exec);
 
 const JOKE_API_URL = 'https://v2.jokeapi.dev/joke/Programming?blacklistFlags=nsfw,religious,political,racist,sexist,explicit&type=single';
 const SUPPORTED_THEMES = ['linux', 'funny', 'retro', 'clean'] as const;
@@ -78,12 +85,12 @@ interface GitHubEvent {
  * Handle API request for GitHub user profile script
  */
 export async function GET(
-  request: NextRequest
+  request: NextRequest,
+  context: { params: { username: string } }
 ) {
   try {
-    // Extract username from the URL path
-    const pathname = new URL(request.url).pathname;
-    const username = pathname.split('/').pop() || '';
+    // Next.js docs recommend awaiting params in async routes
+    const { username } = await Promise.resolve(context.params);
     
     if (!username) {
       return NextResponse.json({ error: 'Username is required' }, { status: 400 });
@@ -98,7 +105,7 @@ export async function GET(
       const themeScript = generateThemeScript(theme, username, jokeText);
       const scriptContent = generateCompleteScript(themeScript, username, theme, userData);
       
-      const scriptUrl = await uploadScriptToHost(scriptContent);
+      const scriptUrl = await uploadScriptToHost(scriptContent, username);
       const command = generateCommand(scriptContent, scriptUrl);
 
       return NextResponse.json({ 
@@ -504,28 +511,32 @@ ${theme === 'retro' ? 'echo -e "\\nGenerated with GitHub Profile CLI"' : ''}`;
 }
 
 /**
- * Create data URI for the script
+ * Upload script to hosting service
  */
-async function uploadScriptToHost(scriptContent: string): Promise<string> {
+async function uploadScriptToHost(scriptContent: string, username: string): Promise<string> {
   try {
-    // Create a data URI for the script instead of using an external hosting service
-    // This avoids IP blocks from file hosting services
-    const encodedScript = encodeURIComponent(scriptContent);
-    const dataUri = `data:text/plain;charset=utf-8,${encodedScript}`;
+    const tempDir = os.tmpdir();
+    const tempFilePath = join(tempDir, `${username}-script.sh`);
     
-    return dataUri;
+    await writeFile(tempFilePath, scriptContent);
+    
+    const { stdout, stderr } = await execPromise(
+      `curl -A "GitHub CLI v2.0.0" -F "file=@${tempFilePath}" https://0x0.st`
+    );
+    
+    if (stderr) {
+      console.error('Error from curl:', stderr);
+    }
+    
+    return stdout ? stdout.trim() : '';
   } catch (error) {
-    console.error('Error creating data URI:', error);
+    console.error('Error uploading to 0x0.st:', error);
     return '';
   }
 }
 
 function generateCommand(scriptContent: string, scriptUrl: string): string {
-  // For data URIs, always use the inline version
-  if (scriptUrl && scriptUrl.startsWith('data:')) {
-    return `bash <(curl -s "${scriptUrl}")`;
-  }
-  
-  // Fallback to the direct script embedding
-  return `bash <(echo "${scriptContent.replace(/"/g, '\\"')}")`;
+  return scriptUrl 
+    ? `bash <(curl -s ${scriptUrl})`
+    : `bash <(echo "${scriptContent.replace(/"/g, '\\"')}")`;
 } 
