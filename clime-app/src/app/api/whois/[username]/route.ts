@@ -54,6 +54,33 @@ const TERMINAL_STYLES = {
   PAD: '  '
 };
 
+// Define types for GitHub API responses
+interface GitHubRepo {
+  name: string;
+  description: string | null;
+  html_url: string;
+  stargazers_count: number;
+  language: string | null;
+  fork: boolean;
+}
+
+interface GitHubEvent {
+  type: string;
+  repo: {
+    name: string;
+  };
+  payload: {
+    ref_type?: string;
+    action?: string;
+    pull_request?: {
+      html_url: string;
+    };
+    issue?: {
+      html_url: string;
+    };
+  };
+}
+
 /**
  * Handle API request for GitHub user profile script
  */
@@ -129,7 +156,19 @@ async function fetchGitHubUserData(username: string) {
       throw new Error(`GitHub API error: ${userResponse.status}`);
     }
     
-    return await userResponse.json();
+    const userData = await userResponse.json();
+    
+    // Fetch additional data - most starred repos and recent activity
+    const [starredRepos, recentActivity] = await Promise.all([
+      fetchMostStarredRepos(username),
+      fetchRecentActivity(username)
+    ]);
+    
+    return {
+      ...userData,
+      starredRepos,
+      recentActivity
+    };
   } catch (error) {
     // Add better error handling for network issues
     if (!(error instanceof Error) || !error.message.includes('GitHub API error')) {
@@ -137,6 +176,95 @@ async function fetchGitHubUserData(username: string) {
       throw new Error(`GitHub API network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
     throw error;
+  }
+}
+
+/**
+ * Fetch user's most starred repositories
+ */
+async function fetchMostStarredRepos(username: string, limit: number = 3): Promise<Array<{name: string, stars: number, url: string, description?: string}>> {
+  try {
+    // Request more repositories to ensure we get enough starred ones
+    const reposResponse = await fetch(
+      `https://api.github.com/users/${username}/repos?per_page=100&sort=pushed`
+    );
+    
+    if (!reposResponse.ok) {
+      console.warn(`Failed to fetch repositories: ${reposResponse.status}`);
+      return [];
+    }
+    
+    const repos = await reposResponse.json() as GitHubRepo[];
+    
+    // Filter for repos with at least 1 star, then sort by stars
+    return repos
+      .filter(repo => repo.stargazers_count > 0)
+      .sort((a, b) => b.stargazers_count - a.stargazers_count)
+      .slice(0, limit)
+      .map((repo) => ({
+        name: repo.name,
+        stars: repo.stargazers_count,
+        url: repo.html_url,
+        description: repo.description || ''
+      }));
+  } catch (error) {
+    console.error('Error fetching starred repos:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetch user's recent activity (contributions)
+ */
+async function fetchRecentActivity(username: string, limit: number = 3): Promise<Array<{repo: string, type: string, url: string}>> {
+  try {
+    // GitHub API v3 doesn't provide a direct endpoint for user activity
+    // Using the events endpoint as a proxy for recent contributions
+    const eventsResponse = await fetch(
+      `https://api.github.com/users/${username}/events?per_page=${limit}`
+    );
+    
+    if (!eventsResponse.ok) {
+      console.warn(`Failed to fetch events: ${eventsResponse.status}`);
+      return [];
+    }
+    
+    const events = await eventsResponse.json() as GitHubEvent[];
+    
+    // Filter to relevant activity types and format data
+    return events
+      .filter((event) => 
+        ['PushEvent', 'PullRequestEvent', 'IssuesEvent', 'CreateEvent'].includes(event.type)
+      )
+      .slice(0, limit)
+      .map((event) => {
+        const repo = event.repo.name;
+        let type = 'contributed to';
+        let url = `https://github.com/${repo}`;
+        
+        // Determine activity type
+        switch(event.type) {
+          case 'PushEvent':
+            type = 'pushed to';
+            break;
+          case 'PullRequestEvent':
+            type = 'opened PR in';
+            url = event.payload.pull_request?.html_url || url;
+            break;
+          case 'IssuesEvent':
+            type = `${event.payload.action} issue in`;
+            url = event.payload.issue?.html_url || url;
+            break;
+          case 'CreateEvent':
+            type = `created ${event.payload.ref_type} in`;
+            break;
+        }
+        
+        return { repo, type, url };
+      });
+  } catch (error) {
+    console.error('Error fetching recent activity:', error);
+    return [];
   }
 }
 
@@ -238,7 +366,6 @@ else
 fi`;
 }
 
-// Define GitHub user data interface for type safety
 interface GitHubUserData {
   name?: string;
   bio?: string;
@@ -246,7 +373,6 @@ interface GitHubUserData {
   location?: string;
   blog?: string;
   twitter_username?: string;
-  // Add other potential properties we might use
   login: string;
   avatar_url?: string;
   html_url?: string;
@@ -255,8 +381,10 @@ interface GitHubUserData {
   following?: number;
   created_at?: string;
   updated_at?: string;
-  // Allow for additional properties without using 'any'
-  [key: string]: string | number | boolean | null | undefined;
+  // New properties
+  starredRepos?: Array<{name: string, stars: number, url: string, description?: string}>;
+  recentActivity?: Array<{repo: string, type: string, url: string}>;
+  [key: string]: unknown;
 }
 
 /**
@@ -295,6 +423,30 @@ function extractUserInfo(userData: GitHubUserData): string {
   // Add social links in a structured format with background colors
   const socials = extractSocialsStructured(userData);
   lines.push(...socials);
+  
+  // Add starred repositories if available
+  if (userData.starredRepos && userData.starredRepos.length > 0) {
+    lines.push(`echo ""`);
+    lines.push(`echo -e "${TERMINAL_STYLES.BG_ORANGE}${TERMINAL_STYLES.WHITE}${TERMINAL_STYLES.PAD}Top Starred Repositories${TERMINAL_STYLES.PAD}${TERMINAL_STYLES.RESET}"`);
+    
+    userData.starredRepos.forEach(repo => {
+      const stars = repo.stars > 0 ? ` (${repo.stars}⭐)` : '';
+      const desc = repo.description ? `: ${repo.description.replace(/"/g, '\\"')}` : '';
+      lines.push(`echo -e "  • ${repo.name}${stars}${desc}"`);
+      lines.push(`echo -e "    ${repo.url}"`);
+    });
+  }
+  
+  // Add recent activity if available
+  if (userData.recentActivity && userData.recentActivity.length > 0) {
+    lines.push(`echo ""`);
+    lines.push(`echo -e "${TERMINAL_STYLES.BG_PURPLE}${TERMINAL_STYLES.WHITE}${TERMINAL_STYLES.PAD}Recent Activity${TERMINAL_STYLES.PAD}${TERMINAL_STYLES.RESET}"`);
+    
+    userData.recentActivity.forEach(activity => {
+      lines.push(`echo -e "  • ${activity.type} ${activity.repo.replace(/"/g, '\\"')}"`);
+      lines.push(`echo -e "    ${activity.url}"`);
+    });
+  }
   
   return lines.join('\n');
 }
