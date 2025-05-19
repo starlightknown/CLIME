@@ -13,6 +13,13 @@ CLIME (Command Line Interface Made Easy) generates a sharable bash command that 
 
 Visit the [CLIME Web App](https://clime-ftiuwkty1-starlightknowns-projects.vercel.app) to generate your own GitHub profile CLI.
 
+
+
+https://github.com/user-attachments/assets/67ece2ad-e020-4d6a-9ce5-26f023770fde
+
+
+
+
 ## Local Development
 
 ### Prerequisites
