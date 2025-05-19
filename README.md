@@ -1,13 +1,13 @@
-# CLIME - GitHub Profile CLI Generator
+# CLIME
 
 CLIME is a command line ReadMe which generates a sharable bash command that showcases your info in the terminal. Perfect for CLI enthusiasts and developers who love the command line.
 
 ## Features
 
-- 🚀 Generate beautiful terminal-friendly GitHub profiles
-- 🎨 Multiple themes (Clean, Linux, Cowsay, Figlet)
-- 📊 Shows user data, top starred repositories, and recent activity
-- 😄 Programming jokes with Cowsay integration
+- 🚀 Turns your ReadMe into a bash friendly profile showcase.
+- 🎨 Multiple themes (Clean, Linux, Cowsay, Figlet).
+- 📊 Shows user data, top starred repositories, and recent activity.
+- 😄 Programming jokes with Cowsay integration.
 
 ## Try It Out
 
@@ -16,6 +16,11 @@ Visit the [CLIME Web App](https://clime-ftiuwkty1-starlightknowns-projects.verce
 
 
 https://github.com/user-attachments/assets/67ece2ad-e020-4d6a-9ce5-26f023770fde
+
+<img width="982" alt="image" src="https://github.com/user-attachments/assets/3de53d73-ba53-4d99-8179-e5d4c1d0d993" />
+
+<img width="982" alt="image" src="https://github.com/user-attachments/assets/2fdd93b4-72cb-449b-b048-fded114303be" />
+
 
 
 
