@@ -1,6 +1,6 @@
 # CLIME - GitHub Profile CLI Generator
 
-CLIME (Command Line Interface Made Easy) generates a sharable bash command that showcases GitHub profiles in the terminal. Perfect for CLI enthusiasts and developers who love the command line.
+CLIME is a command line ReadMe which generates a sharable bash command that showcases your info in the terminal. Perfect for CLI enthusiasts and developers who love the command line.
 
 ## Features
 
