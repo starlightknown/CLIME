@@ -11,13 +11,7 @@ CLIME (Command Line Interface Made Easy) generates a sharable bash command that 
 
 ## Try It Out
 
-Visit the [CLIME Web App](https://github.com/karuna/CLIME) to generate your own GitHub profile CLI.
-
-Or run this command in your terminal:
-
-```bash
-bash <(curl -s https://0x0.st/YOUR_GENERATED_LINK.sh)
-```
+Visit the [CLIME Web App](https://clime-ftiuwkty1-starlightknowns-projects.vercel.app) to generate your own GitHub profile CLI.
 
 ## Local Development
 
